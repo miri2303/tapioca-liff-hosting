@@ -1,90 +1,250 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>注文状況（LIFF）</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>注文状況</title>
+  <meta name="theme-color" content="#ffffff" />
   <style>
-    body{font-family:system-ui,-apple-system, "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Meiryo", "Noto Sans JP"; background:#f5f7fb; margin:0; padding:20px; display:flex; align-items:center; justify-content:center; min-height:100vh;}
-    .card{background:#fff; padding:24px; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.08); width:100%; max-width:420px; text-align:center;}
-    h1{color:#00b900; margin:0 0 8px 0;}
-    .order-number{font-size:48px; font-weight:700; margin:16px 0;}
-    .status-text{font-size:18px; margin-bottom:8px;}
-    #message{color:#666; font-size:14px;}
-    button{padding:10px 14px; border-radius:8px; border:0; cursor:pointer; font-weight:600;}
-    .btn-primary{background:#00b900; color:#fff;}
-    .btn-ghost{background:#eee; color:#333; margin-left:8px;}
-    .small{font-size:12px; color:#999; margin-top:8px;}
+    :root{
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --accent: #00b900;
+      --muted: #6b7280;
+      --glass: rgba(255,255,255,0.6);
+      --radius: 14px;
+      --shadow: 0 10px 30px rgba(18,38,63,0.08);
+      --mono: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    }
+
+    html,body { height:100%; margin:0; font-family:var(--mono); background: linear-gradient(180deg, #f7fbff 0%, var(--bg) 100%); color:#111827; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+
+    .wrap{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:28px;
+    }
+
+    .card{
+      width:100%;
+      max-width:520px;
+      background:var(--card);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:32px;
+      box-sizing:border-box;
+      text-align:center;
+      border: 1px solid rgba(3,7,18,0.03);
+    }
+
+    .kicker{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      background: linear-gradient(90deg, rgba(0,185,0,0.12), rgba(0,185,0,0.06));
+      padding:6px 10px;
+      border-radius:999px;
+      font-weight:700;
+      color:var(--accent);
+      font-size:13px;
+      letter-spacing:0.02em;
+    }
+
+    h1{
+      margin:18px 0 6px;
+      font-size:20px;
+      font-weight:700;
+    }
+
+    p.lead{
+      margin:0;
+      color:var(--muted);
+      font-size:14px;
+    }
+
+    .number-wrap{ margin-top:22px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+
+    .order-number{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:180px;
+      height:180px;
+      border-radius:999px;
+      background: linear-gradient(180deg, rgba(0,185,0,0.12), rgba(0,185,0,0.04));
+      box-shadow: 0 8px 22px rgba(3,7,18,0.06);
+      font-size:56px;
+      font-weight:800;
+      color:#082020;
+      margin-bottom:14px;
+    }
+
+    .status{
+      font-size:15px;
+      color:var(--muted);
+      margin-bottom:2px;
+    }
+
+    .message{
+      margin-top:12px;
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.5;
+      max-width:420px;
+    }
+
+    .meta{
+      margin-top:16px;
+      font-size:12px;
+      color:#9aa0a6;
+    }
+
+    .loading {
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-weight:600;
+      font-size:14px;
+    }
+
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background:var(--accent); opacity:0.95;
+      animation: pulse 1.4s infinite;
+      box-shadow:0 6px 18px rgba(0,185,0,0.18);
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.95; }
+      50% { transform: scale(1.5); opacity: 0.45; }
+      100% { transform: scale(1); opacity: 0.95; }
+    }
+
+    /* small & responsive */
+    @media (max-width:420px){
+      .order-number{ width:140px; height:140px; font-size:44px; }
+      .card{ padding:22px; border-radius:12px; }
+    }
+
+    /* error */
+    .error{
+      color:#b91c1c;
+      font-weight:700;
+      margin-top:12px;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>注文状況（LIFF）</h1>
-    <div id="loading">LINE情報を取得中...</div>
+  <div class="wrap" role="main">
+    <section class="card" aria-labelledby="title">
+      <div class="kicker" aria-hidden="true">注文状況</div>
+      <h1 id="title">あなたの受付番号</h1>
+      <p class="lead" id="lead">この画面はそのまま閉じても構いません。ステータスは LINE で通知されます。</p>
 
-    <div id="content" style="display:none;">
-      <div class="status-text">あなたの受付番号</div>
-      <div class="order-number" id="orderNumber">--</div>
-      <div id="message">この画面は閉じても OK。ステータスが変わったら LINE 通知が来ます。</div>
-      <div style="margin-top:16px;">
-        <button class="btn-primary" id="openChat">LINE で開く</button>
-        <button class="btn-ghost" id="logout">ログアウト</button>
+      <div class="number-wrap" aria-live="polite">
+        <div id="loading" class="loading" style="margin-top:28px;">
+          <span class="dot" aria-hidden="true"></span><span id="loadingText">LINE 情報を取得しています…</span>
+        </div>
+
+        <div id="result" style="display:none;">
+          <div class="order-number" id="orderNumber">--</div>
+          <div class="status" id="statusText">調理中</div>
+          <div class="message" id="messageText">注文が正常に紐付けられると、ここに受付番号が表示されます。</div>
+          <div class="meta" id="meta">注文ID: <span id="orderId">-</span></div>
+        </div>
+
+        <div id="errorBox" style="display:none;">
+          <div class="error" id="errorText"></div>
+          <div class="meta" id="errorMeta" style="margin-top:8px;"></div>
+        </div>
       </div>
-      <div class="small">注文ID: <span id="orderIdDisplay">-</span></div>
-    </div>
+    </section>
   </div>
 
   <script>
-    // ----- 必ずここを編集 -----
-    const LIFF_ID = "2008278309-wnW08Lpe"; // ← LINE Developers で発行された LIFF ID を入れる
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzQ2qrd_pfsce_JtHi62ir34CLfLwcUiAYR6-Q1BDHfXO64sygLcSODw-YBGfPOfWPr3w/exec"; // ← GAS の「ウェブアプリ」URL（公開: 全員）を入れる
-    // 例: "https://script.google.com/macros/s/AKfyc.../exec"
-    // -------------------------
-
-    // LIFF SDK の安定版（edge） — あなたが動作確認したものを使用
+    // ----- 設定（ここだけ置き換えてください） -----
+    const LIFF_ID = "REPLACE_WITH_YOUR_LIFF_ID"; // ← LINE Developers の LIFF ID
+    const GAS_URL = "REPLACE_WITH_YOUR_GAS_WEBAPP_URL"; // ← GAS のデプロイ URL (例: https://script.google.com/macros/s/AKfy.../exec)
     const LIFF_SDK = "https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js";
+    // ----------------------------------------------
 
-    // --- SDK ローダー ---
-    function loadScript(src) {
+    // UI 要素
+    const elLoading = document.getElementById('loading');
+    const elLoadingText = document.getElementById('loadingText');
+    const elResult = document.getElementById('result');
+    const elOrder = document.getElementById('orderNumber');
+    const elStatus = document.getElementById('statusText');
+    const elMessage = document.getElementById('messageText');
+    const elOrderId = document.getElementById('orderId');
+    const elErrorBox = document.getElementById('errorBox');
+    const elErrorText = document.getElementById('errorText');
+    const elErrorMeta = document.getElementById('errorMeta');
+
+    function showLoading(text){
+      elLoading.style.display = 'inline-flex';
+      elLoadingText.textContent = text || '読み込み中…';
+      elResult.style.display = 'none';
+      elErrorBox.style.display = 'none';
+    }
+    function showResult(number, status, message, orderId){
+      elLoading.style.display = 'none';
+      elResult.style.display = 'block';
+      elErrorBox.style.display = 'none';
+      elOrder.textContent = number !== undefined && number !== null ? number : '--';
+      elStatus.textContent = status || '調理中';
+      elMessage.textContent = message || 'ステータスが変わったら LINE で通知します。';
+      elOrderId.textContent = orderId || '-';
+    }
+    function showError(msg, meta){
+      elLoading.style.display = 'none';
+      elResult.style.display = 'none';
+      elErrorBox.style.display = 'block';
+      elErrorText.textContent = msg || 'エラーが発生しました。';
+      elErrorMeta.textContent = meta || '';
+    }
+
+    // クエリ取得
+    function getQueryParam(name){
+      try {
+        const url = new URL(window.location.href);
+        return url.searchParams.get(name);
+      } catch (e){
+        return null;
+      }
+    }
+
+    // 動的に LIFF SDK を読み込む
+    function loadScript(src){
       return new Promise((resolve, reject) => {
         if (window.liff) return resolve();
-        const s = document.createElement("script");
+        const s = document.createElement('script');
         s.src = src;
         s.async = true;
         s.onload = () => resolve();
-        s.onerror = () => reject(new Error("SDK の読み込みに失敗しました: " + src));
+        s.onerror = () => reject(new Error('LIFF SDK の読み込みに失敗しました'));
         document.head.appendChild(s);
       });
     }
 
-    // --- ヘルパー: クエリパラメータ取得 ---
-    function getQueryParam(name) {
-      const url = new URL(window.location.href);
-      return url.searchParams.get(name);
-    }
-
-    async function main() {
-      const loadingEl = document.getElementById("loading");
-      const contentEl = document.getElementById("content");
-      const orderNumberEl = document.getElementById("orderNumber");
-      const orderIdEl = document.getElementById("orderIdDisplay");
-      const messageEl = document.getElementById("message");
-      const openChatBtn = document.getElementById("openChat");
-      const logoutBtn = document.getElementById("logout");
-
-      if (!LIFF_ID || LIFF_ID.indexOf("REPLACE") !== -1) {
-        loadingEl.textContent = "LIFF_ID が設定されていません。index.html を編集してください。";
+    async function init(){
+      // basic checks
+      if (!LIFF_ID || LIFF_ID.includes('REPLACE')) {
+        showError('LIFF_ID が未設定です。index.html 内の設定を更新してください。');
         return;
       }
-      if (!GAS_URL || GAS_URL.indexOf("REPLACE") !== -1) {
-        loadingEl.textContent = "GAS_URL が設定されていません。index.html を編集して GAS のウェブアプリ URL を入れてください。";
+      if (!GAS_URL || GAS_URL.includes('REPLACE')) {
+        showError('GAS_URL が未設定です。GAS のウェブアプリ URL を設定してください。');
         return;
       }
+
+      showLoading('LINE 情報を取得しています…');
 
       try {
         await loadScript(LIFF_SDK);
       } catch (err) {
-        loadingEl.textContent = "LIFF SDK の読み込みに失敗しました。ネットワークを確認してください。";
+        showError('LIFF SDK の読み込みに失敗しました。ネットワークを確認してください。', err.message || '');
         console.error(err);
         return;
       }
@@ -92,84 +252,81 @@
       try {
         await window.liff.init({ liffId: LIFF_ID });
       } catch (err) {
-        loadingEl.innerHTML = `<div style="color:red;">LIFF 初期化に失敗しました: ${err.message || err}</div>`;
-        console.error("liff.init error:", err);
+        showError('LIFF 初期化に失敗しました。LIFF ID と Endpoint 設定を確認してください。', err.message || '');
+        console.error(err);
         return;
       }
 
-      // ユーザがログインしてなければ login（LINE内ブラウザだと既にログイン済が多い）
+      // login（未ログイン時）
       if (!window.liff.isLoggedIn()) {
         try {
           window.liff.login();
+          // login するとアプリがリダイレクトされるためここは通常戻らない
           return;
-        } catch(e) {
-          console.warn("login failed", e);
+        } catch (e) {
+          // 失敗しても続行を試みる
+          console.warn('liff.login failed', e);
         }
       }
 
-      // プロフィール取得
+      // get profile
       let profile;
       try {
         profile = await window.liff.getProfile();
-      } catch(err) {
-        loadingEl.innerHTML = `<div style="color:red;">プロフィール取得に失敗しました。LINE 内ブラウザで開いているか確認してください。</div>`;
-        console.error("getProfile error:", err);
+      } catch (err) {
+        showError('プロフィールの取得に失敗しました。LINE 内ブラウザで開いているかを確認してください。', err.message || '');
+        console.error(err);
         return;
       }
 
-      // orderId は LIFF URL のクエリパラメータ ?orderId=... から受け取る想定
-      const orderId = getQueryParam("orderId");
-      orderIdEl.textContent = orderId || "（なし）";
-
-      // サーバ（GAS）に紐付けリクエストを送る（application/x-www-form-urlencoded）
-      if (orderId) {
-        try {
-          const body = `action=linkLiffUser&orderId=${encodeURIComponent(orderId)}&userId=${encodeURIComponent(profile.userId)}`;
-          const resp = await fetch(GAS_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-            body: body
-          });
-          const json = await resp.json();
-          if (json.status === "success") {
-            orderNumberEl.textContent = json.data.orderNumber;
-            loadingEl.style.display = "none";
-            contentEl.style.display = "block";
-            messageEl.textContent = "注文とLINEアカウントの紐付けが完了しました。ステータスが変わったら通知が来ます。";
-          } else {
-            loadingEl.style.display = "none";
-            contentEl.style.display = "block";
-            messageEl.textContent = "紐付けに失敗しました: " + (json.message || "不明なエラー");
-          }
-        } catch (err) {
-          loadingEl.style.display = "none";
-          contentEl.style.display = "block";
-          messageEl.textContent = "サーバ接続に失敗しました。GAS のデプロイ設定（匿名アクセス）を確認してください。";
-          console.error(err);
-        }
-      } else {
-        // orderId が無い場合はログイン情報のみ表示
-        loadingEl.style.display = "none";
-        contentEl.style.display = "block";
-        messageEl.textContent = "有効な orderId がありません。QR やリンクからアクセスしてください。";
+      // orderId from query param
+      const orderId = getQueryParam('orderId');
+      if (!orderId) {
+        showResult('--', '未登録', '有効な orderId がありません。注文画面からアクセスしてください。', null);
+        return;
       }
+      elOrderId.textContent = orderId;
 
-      // ボタン動作
-      openChatBtn.onclick = () => {
-        try {
-          window.open("https://line.me/R/nv/profile");
-        } catch(e){ console.error(e); }
-      };
-      logoutBtn.onclick = () => {
-        try {
-          window.liff.logout();
-          alert("ログアウトしました。");
-        } catch(e) { console.error(e); }
-      };
+      // サーバへ紐付けリクエスト（フォーム形式）
+      try {
+        const body = `action=linkLiffUser&orderId=${encodeURIComponent(orderId)}&userId=${encodeURIComponent(profile.userId)}`;
+        const resp = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body
+        });
+
+        // ネットワークエラー
+        if (!resp.ok) {
+          const text = await resp.text().catch(()=>resp.statusText);
+          showError('サーバーに接続できませんでした。', `HTTP ${resp.status}: ${text}`);
+          return;
+        }
+
+        const json = await resp.json().catch(()=>null);
+        if (!json) {
+          showError('サーバーの応答が不正です。', 'JSON parse error');
+          return;
+        }
+
+        if (json.status === 'success' && json.data) {
+          // 成功時: サーバが返す orderNumber を表示
+          const orderNumber = json.data.orderNumber || '--';
+          showResult(orderNumber, '調理中', '紐付けに成功しました。ステータスが変わったら LINE で通知します。', orderId);
+        } else {
+          // 失敗時: メッセージ表示
+          const reason = json && json.message ? json.message : '不明なエラー';
+          showError('紐付けに失敗しました: ' + reason, 'orderId: ' + orderId);
+        }
+
+      } catch (err) {
+        showError('紐付け中に通信エラーが発生しました。', err.message || '');
+        console.error(err);
+      }
     }
 
     // 実行
-    main();
+    init();
   </script>
 </body>
 </html>
