@@ -1,170 +1,175 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="ja">
 <head>
-  <base target="_top">
-  <title>注文状況確認</title>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- 動作確認済みのLIFF SDK URL -->
-  <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>注文状況（LIFF）</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f0f0f0; }
-    .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1 ); max-width: 400px; margin: 0 auto; }
-    h1 { color: #00b900; }
-    .status-box { margin-top: 20px; padding: 20px; border-radius: 8px; }
-    .status-waiting { background-color: #ffc107; color: #333; }
-    .status-ready { background-color: #28a745; color: white; }
-    .status-text { font-size: 1.5em; font-weight: bold; margin-bottom: 10px; }
-    .order-number { font-size: 3em; font-weight: bold; color: #333; }
-    #message { margin-top: 20px; font-size: 1.1em; }
-    #loading { margin-top: 20px; }
+    body{font-family:system-ui,-apple-system, "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Meiryo", "Noto Sans JP"; background:#f5f7fb; margin:0; padding:20px; display:flex; align-items:center; justify-content:center; min-height:100vh;}
+    .card{background:#fff; padding:24px; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.08); width:100%; max-width:420px; text-align:center;}
+    h1{color:#00b900; margin:0 0 8px 0;}
+    .order-number{font-size:48px; font-weight:700; margin:16px 0;}
+    .status-text{font-size:18px; margin-bottom:8px;}
+    #message{color:#666; font-size:14px;}
+    button{padding:10px 14px; border-radius:8px; border:0; cursor:pointer; font-weight:600;}
+    .btn-primary{background:#00b900; color:#fff;}
+    .btn-ghost{background:#eee; color:#333; margin-left:8px;}
+    .small{font-size:12px; color:#999; margin-top:8px;}
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>タピオカドリンク注文状況</h1>
-    
-    <div id="loading">
-      <p>LINE情報を取得中...</p>
-    </div>
+  <div class="card">
+    <h1>注文状況（LIFF）</h1>
+    <div id="loading">LINE情報を取得中...</div>
 
-    <div id="content" style="display: none;">
-      <p>あなたの受付番号</p>
-      <div id="statusBox" class="status-box status-waiting">
-        <div class="status-text">調理中</div>
-        <div class="order-number" id="orderNumberDisplay">--</div>
+    <div id="content" style="display:none;">
+      <div class="status-text">あなたの受付番号</div>
+      <div class="order-number" id="orderNumber">--</div>
+      <div id="message">この画面は閉じても OK。ステータスが変わったら LINE 通知が来ます。</div>
+      <div style="margin-top:16px;">
+        <button class="btn-primary" id="openChat">LINE で開く</button>
+        <button class="btn-ghost" id="logout">ログアウト</button>
       </div>
-      <p id="message">調理完了後、LINEで通知が届きます。この画面は閉じても大丈夫です。</p>
-      <p style="font-size: 0.8em; color: #999;">注文ID: <span id="orderIdDisplay"></span></p>
+      <div class="small">注文ID: <span id="orderIdDisplay">-</span></div>
     </div>
   </div>
 
   <script>
-    // =================================================================
-    // 【要編集】LIFF IDとGAS API URLをここに直接貼り付けてください
-    // =================================================================
-    // 1. LINE Developersコンソールから取得したLIFF ID
-    const LIFF_ID = "2008278309-wnW08Lpe"; 
+    // ----- 必ずここを編集 -----
+    const LIFF_ID = "2008278309-wnW08Lpe"; // ← LINE Developers で発行された LIFF ID を入れる
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzQ2qrd_pfsce_JtHi62ir34CLfLwcUiAYR6-Q1BDHfXO64sygLcSODw-YBGfPOfWPr3w/exec"; // ← GAS の「ウェブアプリ」URL（公開: 全員）を入れる
+    // 例: "https://script.google.com/macros/s/AKfyc.../exec"
+    // -------------------------
 
-    // 2. デプロイしたGAS WebアプリのURL
-    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzQ2qrd_pfsce_JtHi62ir34CLfLwcUiAYR6-Q1BDHfXO64sygLcSODw-YBGfPOfWPr3w/exec"; 
-    // 例: const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzQ2qrd_pfsce_JtHi62ir34CLfLwcUiAYR6-Q1BDHfXO64sygLcSODw-YBGfPOfWPr3w/exec";
-    // =================================================================
+    // LIFF SDK の安定版（edge） — あなたが動作確認したものを使用
+    const LIFF_SDK = "https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js";
 
-    // URLパラメータから注文IDを取得
-    const urlParams = new URLSearchParams(window.location.search );
-    const orderId = urlParams.get('orderId') || "";
-
-    /**
-     * 画面デバッグ用関数
-     */
-    function logToScreen(message) {
-      const debugArea = document.getElementById('message');
-      // 最新のメッセージが上に来るようにする
-      debugArea.innerHTML = message + '  
-' + debugArea.innerHTML;
-      console.log(message);
+    // --- SDK ローダー ---
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        if (window.liff) return resolve();
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("SDK の読み込みに失敗しました: " + src));
+        document.head.appendChild(s);
+      });
     }
 
-    /**
-     * LIFF初期化と処理
-     */
-    async function initializeLiff() {
-      try {
-        logToScreen('LIFF ID: ' + LIFF_ID);
-        
-        // LIFF IDのバリデーション
-        if (LIFF_ID === "ここにLIFF IDを貼り付けてください" || !LIFF_ID) {
-            throw new Error("LIFF IDが設定されていません。コードを編集してください。");
-        }
-        
-        await liff.init({ liffId: LIFF_ID });
-        logToScreen('LIFF Init Success');
+    // --- ヘルパー: クエリパラメータ取得 ---
+    function getQueryParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
 
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('content').style.display = 'block';
+    async function main() {
+      const loadingEl = document.getElementById("loading");
+      const contentEl = document.getElementById("content");
+      const orderNumberEl = document.getElementById("orderNumber");
+      const orderIdEl = document.getElementById("orderIdDisplay");
+      const messageEl = document.getElementById("message");
+      const openChatBtn = document.getElementById("openChat");
+      const logoutBtn = document.getElementById("logout");
 
-        if (!liff.isLoggedIn()) {
-          logToScreen('Not Logged In. Redirecting to login...');
-          // リダイレクトURLと必要なスコープを明示的に指定
-          liff.login({ 
-            redirectUri: location.href,
-            scope: 'profile openid' // ユーザーIDとプロファイル情報を確実に取得するためのスコープ
-          });
-          return;
-        }
-
-        logToScreen('Logged In. Getting Profile...');
-        // ユーザーIDを取得
-        const profile = await liff.getProfile();
-        const userId = profile.userId;
-        logToScreen('User ID: ' + userId);
-
-        // 注文IDを表示
-        document.getElementById('orderIdDisplay').textContent = orderId;
-        
-        // 注文IDとユーザーIDをGASに送信して紐付け (Fetch APIを使用)
-        if (orderId) {
-          logToScreen('Linking Order ID and User ID to GAS...');
-          
-          const formData = new URLSearchParams();
-          formData.append('action', 'linkLiffUser');
-          formData.append('orderId', orderId);
-          formData.append('userId', userId);
-
-          const response = await fetch(GAS_API_URL, {
-            method: 'POST',
-            body: formData
-          });
-          const result = await response.json();
-
-          if (result.status === 'success') {
-            linkSuccess(result.data);
-          } else {
-            // GASからのエラーメッセージを表示
-            linkFailure(new Error(result.message));
-          }
-
-        } else {
-          document.getElementById('message').textContent = '有効な注文IDがありません。';
-        }
-
-      } catch (err) {
-        // エラーメッセージを画面に大きく表示
-        document.getElementById('loading').innerHTML = `
-          <p style="color: red; font-size: 1.5em; font-weight: bold;">LIFFエラー発生</p>
-          <p style="color: red;">エラー名: ${err.name || 'UnknownError'}</p>
-          <p style="color: red;">メッセージ: ${err.message}</p>
-        `;
-        document.getElementById('message').innerHTML = `
-          <p style="color: red;">エラー詳細: ${err.message}</p>
-        `;
-        console.error('LIFF initialization failed', err);
+      if (!LIFF_ID || LIFF_ID.indexOf("REPLACE") !== -1) {
+        loadingEl.textContent = "LIFF_ID が設定されていません。index.html を編集してください。";
+        return;
       }
+      if (!GAS_URL || GAS_URL.indexOf("REPLACE") !== -1) {
+        loadingEl.textContent = "GAS_URL が設定されていません。index.html を編集して GAS のウェブアプリ URL を入れてください。";
+        return;
+      }
+
+      try {
+        await loadScript(LIFF_SDK);
+      } catch (err) {
+        loadingEl.textContent = "LIFF SDK の読み込みに失敗しました。ネットワークを確認してください。";
+        console.error(err);
+        return;
+      }
+
+      try {
+        await window.liff.init({ liffId: LIFF_ID });
+      } catch (err) {
+        loadingEl.innerHTML = `<div style="color:red;">LIFF 初期化に失敗しました: ${err.message || err}</div>`;
+        console.error("liff.init error:", err);
+        return;
+      }
+
+      // ユーザがログインしてなければ login（LINE内ブラウザだと既にログイン済が多い）
+      if (!window.liff.isLoggedIn()) {
+        try {
+          window.liff.login();
+          return;
+        } catch(e) {
+          console.warn("login failed", e);
+        }
+      }
+
+      // プロフィール取得
+      let profile;
+      try {
+        profile = await window.liff.getProfile();
+      } catch(err) {
+        loadingEl.innerHTML = `<div style="color:red;">プロフィール取得に失敗しました。LINE 内ブラウザで開いているか確認してください。</div>`;
+        console.error("getProfile error:", err);
+        return;
+      }
+
+      // orderId は LIFF URL のクエリパラメータ ?orderId=... から受け取る想定
+      const orderId = getQueryParam("orderId");
+      orderIdEl.textContent = orderId || "（なし）";
+
+      // サーバ（GAS）に紐付けリクエストを送る（application/x-www-form-urlencoded）
+      if (orderId) {
+        try {
+          const body = `action=linkLiffUser&orderId=${encodeURIComponent(orderId)}&userId=${encodeURIComponent(profile.userId)}`;
+          const resp = await fetch(GAS_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+            body: body
+          });
+          const json = await resp.json();
+          if (json.status === "success") {
+            orderNumberEl.textContent = json.data.orderNumber;
+            loadingEl.style.display = "none";
+            contentEl.style.display = "block";
+            messageEl.textContent = "注文とLINEアカウントの紐付けが完了しました。ステータスが変わったら通知が来ます。";
+          } else {
+            loadingEl.style.display = "none";
+            contentEl.style.display = "block";
+            messageEl.textContent = "紐付けに失敗しました: " + (json.message || "不明なエラー");
+          }
+        } catch (err) {
+          loadingEl.style.display = "none";
+          contentEl.style.display = "block";
+          messageEl.textContent = "サーバ接続に失敗しました。GAS のデプロイ設定（匿名アクセス）を確認してください。";
+          console.error(err);
+        }
+      } else {
+        // orderId が無い場合はログイン情報のみ表示
+        loadingEl.style.display = "none";
+        contentEl.style.display = "block";
+        messageEl.textContent = "有効な orderId がありません。QR やリンクからアクセスしてください。";
+      }
+
+      // ボタン動作
+      openChatBtn.onclick = () => {
+        try {
+          window.open("https://line.me/R/nv/profile");
+        } catch(e){ console.error(e); }
+      };
+      logoutBtn.onclick = () => {
+        try {
+          window.liff.logout();
+          alert("ログアウトしました。");
+        } catch(e) { console.error(e); }
+      };
     }
 
-    /**
-     * GASへの紐付け成功時の処理
-     */
-    function linkSuccess(result) {
-      logToScreen('Link Success: ' + JSON.stringify(result));
-      document.getElementById('orderNumberDisplay').textContent = result.orderNumber;
-      // 最終メッセージを上書き
-      document.getElementById('message').innerHTML = `受付番号 ${result.orderNumber} 番とLINEアカウントを紐付けました。  
-調理完了後、LINEで通知が届きます。この画面は閉じても大丈夫です。`;
-    }
-
-    /**
-     * GASへの紐付け失敗時の処理
-     */
-    function linkFailure(error) {
-      logToScreen('Link Failure: ' + error.message);
-      // 最終メッセージを上書き
-      document.getElementById('message').innerHTML = `<p style="color: red;">注文情報の紐付けに失敗しました: ${error.message}</p>`;
-    }
-
-    // ページロード時にLIFF初期化関数を実行
-    window.onload = initializeLiff;
+    // 実行
+    main();
   </script>
 </body>
 </html>
