@@ -181,6 +181,9 @@
     const elErrorBox = document.getElementById('errorBox');
     const elErrorText = document.getElementById('errorText');
     const elErrorMeta = document.getElementById('errorMeta');
+    
+    // セッションストレージのキー
+    const SESSION_KEY_PREFIX = 'liff_linked_';
 
     function showLoading(text){
       elLoading.style.display = 'inline-flex';
@@ -286,6 +289,24 @@
         return;
       }
       elOrderId.textContent = orderId;
+      
+      // --- 修正点: セッションストレージによる再利用防止 ---
+      const sessionKey = SESSION_KEY_PREFIX + orderId;
+      const storedUserId = sessionStorage.getItem(sessionKey);
+      
+      if (storedUserId) {
+          // 既にこのセッションで紐付け済みの場合
+          if (storedUserId === profile.userId) {
+              // 同じユーザーが再アクセス: 成功として表示
+              showResult('--', '紐付け済み', 'この注文は既にあなたのLINEアカウントに紐付けられています。', orderId);
+              return;
+          } else {
+              // 別のユーザーがアクセス: エラー
+              showError('このQRコードは既に他のLINEアカウントに紐付けられています。', 'orderId: ' + orderId);
+              return;
+          }
+      }
+      // --- 修正点: セッションストレージによる再利用防止 ---
 
       // サーバへ紐付けリクエスト（フォーム形式）
       try {
@@ -313,6 +334,11 @@
           // 成功時: サーバが返す orderNumber を表示
           const orderNumber = json.data.orderNumber || '--';
           showResult(orderNumber, '調理中', '紐付けに成功しました。ステータスが変わったら LINE で通知します。', orderId);
+          
+          // --- 修正点: 紐付け成功時にセッションストレージに保存 ---
+          sessionStorage.setItem(sessionKey, profile.userId);
+          // --- 修正点: 紐付け成功時にセッションストレージに保存 ---
+          
         } else {
           // 失敗時: メッセージ表示
           const reason = json && json.message ? json.message : '不明なエラー';
