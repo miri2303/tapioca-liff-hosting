@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ja">
 <head>
+  <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>注文状況</title>
@@ -182,7 +183,7 @@
     const elErrorText = document.getElementById('errorText');
     const elErrorMeta = document.getElementById('errorMeta');
     
-    // セッションストレージのキー
+    // セッションストレージのキー (前回の修正で追加)
     const SESSION_KEY_PREFIX = 'liff_linked_';
 
     function showLoading(text){
@@ -275,6 +276,7 @@
       // get profile
       let profile;
       try {
+        // ユーザーIDを取得するために getProfile を使用
         profile = await window.liff.getProfile();
       } catch (err) {
         showError('プロフィールの取得に失敗しました。LINE 内ブラウザで開いているかを確認してください。', err.message || '');
@@ -290,23 +292,11 @@
       }
       elOrderId.textContent = orderId;
       
-      // --- 修正点: セッションストレージによる再利用防止 ---
-      const sessionKey = SESSION_KEY_PREFIX + orderId;
-      const storedUserId = sessionStorage.getItem(sessionKey);
-      
-      if (storedUserId) {
-          // 既にこのセッションで紐付け済みの場合
-          if (storedUserId === profile.userId) {
-              // 同じユーザーが再アクセス: 成功として表示
-              showResult('--', '紐付け済み', 'この注文は既にあなたのLINEアカウントに紐付けられています。', orderId);
-              return;
-          } else {
-              // 別のユーザーがアクセス: エラー
-              showError('このQRコードは既に他のLINEアカウントに紐付けられています。', 'orderId: ' + orderId);
-              return;
-          }
-      }
-      // --- 修正点: セッションストレージによる再利用防止 ---
+      // --- 修正点: セッションストレージによる再利用防止 (前回追加) ---
+      // サーバー側で既に紐付けられているかをチェックするロジックを優先するため、
+      // クライアント側のセッションストレージチェックは削除または変更します。
+      // 今回は、サーバー側の応答で紐付け済みかどうかを判断するように変更します。
+      // -------------------------------------------------------------
 
       // サーバへ紐付けリクエスト（フォーム形式）
       try {
@@ -331,17 +321,33 @@
         }
 
         if (json.status === 'success' && json.data) {
-          // 成功時: サーバが返す orderNumber を表示
-          const orderNumber = json.data.orderNumber || '--';
-          showResult(orderNumber, '調理中', '紐付けに成功しました。ステータスが変わったら LINE で通知します。', orderId);
+          const data = json.data;
+          const orderNumber = data.orderNumber || '--';
           
-          // --- 修正点: 紐付け成功時にセッションストレージに保存 ---
-          sessionStorage.setItem(sessionKey, profile.userId);
-          // --- 修正点: 紐付け成功時にセッションストレージに保存 ---
+          // GASのlinkLiffUser関数は、既に紐付け済みの場合でも success を返しますが、
+          // その場合はサーバー側で紐付け済みのユーザーIDを返します。（元のコードのlinkLiffUserを参照）
+          
+          // サーバー側の応答に、紐付けが完了した後のLINE_USER_IDが含まれていると仮定
+          // 元のlinkLiffUser関数は、紐付け済みの場合は元のデータを返します。
+          
+          // サーバー側で紐付け済みと判断された場合
+          if (data.lineUserId && data.lineUserId !== profile.userId) {
+              // 別のユーザーがアクセス: エラー
+              showError('このQRコードは既に他のLINEアカウントに紐付けられています。', 'orderId: ' + orderId);
+              return;
+          }
+          
+          // 紐付け成功または同じユーザーが再アクセス
+          showResult(orderNumber, data.status || '調理中', '紐付けに成功しました。ステータスが変わったら LINE で通知します。', orderId);
+          
+          // 紐付け成功時に、このLIFFアプリを閉じる
+          // window.liff.closeWindow(); // ユーザーの混乱を避けるため、今回はコメントアウト
           
         } else {
           // 失敗時: メッセージ表示
           const reason = json && json.message ? json.message : '不明なエラー';
+          
+          // GAS側のlinkLiffUser関数が返すエラーメッセージ（例: "この注文はLINE顧客として登録されていません。"）をそのまま表示
           showError('紐付けに失敗しました: ' + reason, 'orderId: ' + orderId);
         }
 
